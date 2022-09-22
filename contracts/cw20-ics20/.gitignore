@@ -25,5 +25,7 @@ logs
 
 node_modules
 
-*.wasm
-*.wasm.gz
+contract.wasm
+!test/snip20.wasm
+
+yarn-error.log

@@ -16,7 +16,9 @@ import {
 import { AminoWallet } from "secretjs/dist/wallet_amino";
 import {
   ibcDenom,
+  loopRelayer,
   sleep,
+  startRelayer,
   waitForBlocks,
   waitForIBCChannel,
   waitForIBCConnection,
@@ -106,12 +108,8 @@ beforeAll(async () => {
   await waitForBlocks("secretdev-1", "http://localhost:9091");
   await waitForBlocks("secretdev-2", "http://localhost:9391");
 
-  contracts.snip20.wasm = fs.readFileSync(
-    `${__dirname}/snip20.wasm`
-  ) as Uint8Array;
-  contracts.ics20.wasm = fs.readFileSync(
-    `${__dirname}/../contract.wasm`
-  ) as Uint8Array;
+  contracts.snip20.wasm = fs.readFileSync(`${__dirname}/snip20.wasm`) as Uint8Array;
+  contracts.ics20.wasm = fs.readFileSync(`${__dirname}/../contract.wasm`) as Uint8Array;
 
   contracts.snip20.codeHash = toHex(sha256(contracts.snip20.wasm));
   contracts.ics20.codeHash = toHex(sha256(contracts.ics20.wasm));
@@ -140,12 +138,8 @@ beforeAll(async () => {
   }
   expect(tx.code).toBe(TxResultCode.Success);
 
-  contracts.snip20.codeId = Number(
-    tx.arrayLog.find((x) => x.key === "code_id").value
-  );
-  contracts.ics20.codeId = Number(
-    tx.arrayLog.reverse().find((x) => x.key === "code_id").value
-  );
+  contracts.snip20.codeId = Number(tx.arrayLog.find((x) => x.key === "code_id").value);
+  contracts.ics20.codeId = Number(tx.arrayLog.reverse().find((x) => x.key === "code_id").value);
 
   console.log("Instantiating contracts on secretdev-1...");
 
@@ -188,70 +182,22 @@ beforeAll(async () => {
   }
   expect(tx.code).toBe(TxResultCode.Success);
 
-  contracts.snip20.address = tx.arrayLog.find(
-    (x) => x.key === "contract_address"
-  ).value;
+  contracts.snip20.address = tx.arrayLog.find((x) => x.key === "contract_address").value;
   contracts.snip20.ibcPortId = "wasm." + contracts.snip20.address;
 
-  contracts.ics20.address = tx.arrayLog
-    .reverse()
-    .find((x) => x.key === "contract_address").value;
+  contracts.ics20.address = tx.arrayLog.reverse().find((x) => x.key === "contract_address").value;
   contracts.ics20.ibcPortId = "wasm." + contracts.ics20.address;
 
   console.log("Waiting for IBC to set up...");
-  await waitForIBCConnection("secretdev-1", "http://localhost:9091");
-  await waitForIBCConnection("secretdev-2", "http://localhost:9391");
+  const link = await startRelayer(contracts.ics20.ibcPortId);
 
-  console.log("Creating IBC channel...");
-
-  const command =
-    "docker exec test-relayer-1 hermes " +
-    "--config /home/hermes-user/.hermes/alternative-config.toml " +
-    "create channel --channel-version ics20-1 --order ORDER_UNORDERED " +
-    "--a-chain secretdev-1 --a-connection connection-0 " +
-    `--b-port transfer --a-port ${contracts.ics20.ibcPortId}`;
-
-  // console.log(command);
-
-  const result = execSync(command);
-
-  const trimmedResult = result.toString().replace(/\s|\n/g, "");
-
-  const regexChannel1 = /a_side.+?,channel_id:Some\(ChannelId\("(channel-\d+)"/;
-  channelId1 = regexChannel1.exec(trimmedResult)[1];
-  expect(channelId1).toContain("channel-");
-
-  const regexChannel2 = /b_side.+?,channel_id:Some\(ChannelId\("(channel-\d+)"/;
-  channelId2 = regexChannel2.exec(trimmedResult)[1];
-  expect(channelId2).toContain("channel-");
-
-  await waitForIBCChannel("secretdev-1", "http://localhost:9091", channelId1);
-  await waitForIBCChannel("secretdev-2", "http://localhost:9391", channelId2);
+  console.log("Looping relayer...");
+  loopRelayer(link);
 }, 180_000 /* 3 minutes timeout */);
 
 test(
   "send from secretdev-1 to secretdev-2 then back to secretdev-1",
   async () => {
-    const x = await accounts1[0].secretjs.tx.broadcast(
-      [
-        new MsgExecuteContract({
-          sender: accounts1[0].address,
-          contractAddress: contracts.snip20.address,
-          codeHash: contracts.snip20.codeHash,
-          msg: {
-            transfer: {
-              recipient: "secret1fc3fzy78ttp0lwuujw7e52rhspxn8uj52zfyne",
-              amount: "1",
-            },
-          },
-        }),
-      ],
-      { gasLimit: 5e6 }
-    );
-    expect(x.code).toBe(0);
-    console.log(JSON.stringify(x));
-    return;
-
     // register snip20 on ics20, then send tokens from secretdev-1
     console.log("Sending tokens from secretdev-1...");
 
@@ -313,17 +259,16 @@ test(
     }
     expect(tx.code).toBe(TxResultCode.Success);
 
-    const snip20Balance: any =
-      await accounts1[0].secretjs.query.compute.queryContract({
-        contractAddress: contracts.snip20.address,
-        codeHash: contracts.snip20.codeHash,
-        query: {
-          balance: {
-            key: "banana",
-            address: accounts1[0].address,
-          },
+    const snip20Balance: any = await accounts1[0].secretjs.query.compute.queryContract({
+      contractAddress: contracts.snip20.address,
+      codeHash: contracts.snip20.codeHash,
+      query: {
+        balance: {
+          key: "banana",
+          address: accounts1[0].address,
         },
-      });
+      },
+    });
     expect(snip20Balance.balance.amount).toBe("999");
 
     console.log("Waiting for tokens to arrive to secretdev-2...");
@@ -335,12 +280,6 @@ test(
 
     // wait for tokens to arrive to secretdev-2
     while (true) {
-      try {
-        execSync(
-          `docker exec test-relayer-1 hermes clear packets --chain secretdev-2 --port transfer --channel ${channelId2} > /dev/null`
-        );
-      } catch (e) {}
-
       const { balance } = await accounts2[1].secretjs.query.bank.balance({
         denom: expectedIbcDenom,
         address: accounts2[1].address,
@@ -367,9 +306,7 @@ test(
         amount: "1",
       },
       receiver: accounts2[1].address,
-      timeoutTimestampSec: String(
-        Math.floor(Date.now() / 1000) + 10 * 60
-      ) /* 10 minutes */,
+      timeoutTimestampSec: String(Math.floor(Date.now() / 1000) + 10 * 60) /* 10 minutes */,
     });
 
     if (tx.code !== TxResultCode.Success) {
@@ -380,20 +317,13 @@ test(
     console.log("Waiting for tokens to arrive back to secretdev-1...");
 
     while (true) {
-      try {
-        execSync(
-          `docker exec test-relayer-1 hermes --config /home/hermes-user/.hermes/alternative-config.toml clear packets --chain secretdev-1 --port ${contracts.ics20.ibcPortId} --channel ${channelId1} > /dev/null`
-        );
-      } catch (e) {}
-
-      const snip20Balance: any =
-        await accounts1[0].secretjs.query.compute.queryContract({
-          contractAddress: contracts.snip20.address,
-          codeHash: contracts.snip20.codeHash,
-          query: {
-            balance: { key: "banana", address: accounts1[0].address },
-          },
-        });
+      const snip20Balance: any = await accounts1[0].secretjs.query.compute.queryContract({
+        contractAddress: contracts.snip20.address,
+        codeHash: contracts.snip20.codeHash,
+        query: {
+          balance: { key: "banana", address: accounts1[0].address },
+        },
+      });
 
       if (snip20Balance.balance.amount === "1000") {
         break;
