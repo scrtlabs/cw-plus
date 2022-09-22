@@ -110,11 +110,11 @@ export async function createIbcConnection(): Promise<Link> {
     prefix: "secret",
     gasPrice: GasPrice.fromString("0.25uscrt"),
     estimatedBlockTime: 5750,
-    estimatedIndexerTime: 1000,
+    estimatedIndexerTime: 500,
   });
-  console.group("IBC client for chain A");
-  console.log(JSON.stringify(clientA));
-  console.groupEnd();
+  // console.group("IBC client for chain A");
+  // console.log(JSON.stringify(clientA));
+  // console.groupEnd();
 
   // Create IBC Client for chain A
   const clientB = await IbcClient.connectWithSigner("http://localhost:36657", signerB, signerB.address, {
@@ -123,50 +123,45 @@ export async function createIbcConnection(): Promise<Link> {
     estimatedBlockTime: 5750,
     estimatedIndexerTime: 500,
   });
-  console.group("IBC client for chain B");
-  console.log(JSON.stringify(clientB));
-  console.groupEnd();
+  // console.group("IBC client for chain B");
+  // console.log(JSON.stringify(clientB));
+  // console.groupEnd();
 
   // Create new connectiosn for the 2 clients
   const link = await Link.createWithNewConnections(clientA, clientB);
 
-  console.group("IBC link details");
-  console.log(JSON.stringify(link));
-  console.groupEnd();
+  // console.group("IBC link details");
+  // console.log(JSON.stringify(link));
+  // console.groupEnd();
 
   return link;
 }
 export async function createIbcChannel(link: Link, contractPort: string): Promise<ChannelPair> {
-  const options = { poll: 5000, maxAgeDest: 86400, maxAgeSrc: 86400 };
-
-  await link.updateClientIfStale("A", options.maxAgeDest);
-  await link.updateClientIfStale("B", options.maxAgeSrc);
+  await Promise.all([link.updateClient("A"), link.updateClient("B")]);
 
   // Create a channel for the connections
   const channels = await link.createChannel("A", contractPort, "transfer", Order.ORDER_UNORDERED, "ics20-1");
 
-  console.group("IBC channel details");
-  console.log(JSON.stringify(channels));
-  console.groupEnd();
+  // console.group("IBC channel details");
+  // console.log(JSON.stringify(channels));
+  // console.groupEnd();
 
   return channels;
 }
 
 export async function loopRelayer(link: Link) {
-  const options = { poll: 5000, maxAgeDest: 86400, maxAgeSrc: 86400 };
   let nextRelay = {};
-  while (this.running) {
+  while (true) {
     try {
-      nextRelay = await link.checkAndRelayPacketsAndAcks(nextRelay, 2, 6);
-      console.group("Next Relay:");
-      console.log(JSON.stringify(nextRelay));
+      nextRelay = await link.relayAll();
+      console.group("Next relay:");
+      console.log(nextRelay);
       console.groupEnd();
 
-      await link.updateClientIfStale("A", options.maxAgeDest);
-      await link.updateClientIfStale("B", options.maxAgeSrc);
+      await Promise.all([link.updateClient("A"), link.updateClient("B")]);
     } catch (e) {
       console.error(`Caught error: `, e);
     }
-    await sleep(options.poll);
+    await sleep(5000);
   }
 }

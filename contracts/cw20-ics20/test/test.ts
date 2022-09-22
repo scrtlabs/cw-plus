@@ -193,7 +193,7 @@ beforeAll(async () => {
   contracts.ics20.address = MsgInstantiateContractResponse.decode(tx.data[0]).address;
   contracts.ics20.ibcPortId = "wasm." + contracts.ics20.address;
 
-  console.log("Waiting IBC connection...");
+  console.log("Waiting for IBC connection...");
   const link = await linkPromise;
 
   console.log("Creating IBC channel...");
@@ -281,9 +281,7 @@ test(
         address: accounts2[1].address,
       });
 
-      if (balance) {
-        expect(balance.amount).toBe("1");
-        expect(balance.denom).toBe(expectedIbcDenom);
+      if (balance?.amount === "1") {
         break;
       }
 
