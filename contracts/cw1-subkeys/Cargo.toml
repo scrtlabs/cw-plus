@@ -23,8 +23,12 @@ cosmwasm-schema = { version = "1.0.0" }
 cw-utils = { path = "../../packages/utils", version = "0.14.0" }
 cw1 = { path = "../../packages/cw1", version = "0.14.0" }
 cw2 = { path = "../../packages/cw2", version = "0.14.0" }
-cw1-whitelist = { path = "../cw1-whitelist", version = "0.14.0", features = ["library"] }
-cosmwasm-std = { version = "1.0.0", features = ["staking"] }
+cw1-whitelist = { path = "../cw1-whitelist", version = "0.14.0", features = [
+    "library"
+] }
+cosmwasm-std = { git = "https://github.com/scrtlabs/cosmwasm", branch = "secret", features = [
+    "staking"
+] }
 cw-storage-plus = { path = "../../packages/storage-plus", version = "0.14.0" }
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
@@ -32,4 +36,7 @@ thiserror = "1.0.23"
 semver = "1"
 
 [dev-dependencies]
-cw1-whitelist = { path = "../cw1-whitelist", version = "0.14.0", features = ["library", "test-utils"] }
+cw1-whitelist = { path = "../cw1-whitelist", version = "0.14.0", features = [
+    "library",
+    "test-utils"
+] }

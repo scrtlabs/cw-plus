@@ -56,14 +56,15 @@ pub fn add_channel(mut deps: DepsMut, channel_id: &str) {
 
 pub fn setup(
     channels: &[&str],
-    allow: &[(&str, u64)],
+    allow: &[(&str, &str, u64)],
 ) -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies();
 
     let allowlist = allow
         .iter()
-        .map(|(contract, gas)| AllowMsg {
+        .map(|(contract, code_hash, gas)| AllowMsg {
             contract: contract.to_string(),
+            code_hash: code_hash.to_string(),
             gas_limit: Some(*gas),
         })
         .collect();

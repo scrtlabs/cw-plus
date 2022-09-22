@@ -49,6 +49,7 @@ pub fn instantiate(
     for allowed in msg.allowlist {
         let contract = deps.api.addr_validate(&allowed.contract)?;
         let info = AllowInfo {
+            code_hash: allowed.code_hash,
             gas_limit: allowed.gas_limit,
         };
         ALLOW_LIST.save(deps.storage, &contract, &info)?;

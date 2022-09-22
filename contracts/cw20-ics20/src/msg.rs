@@ -22,6 +22,7 @@ pub struct InitMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AllowMsg {
     pub contract: String,
+    pub code_hash: String,
     pub gas_limit: Option<u64>,
 }
 

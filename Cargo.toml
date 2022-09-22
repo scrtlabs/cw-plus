@@ -1,6 +1,7 @@
 [workspace]
 # members = ["packages/*", "contracts/*"]
 members = ["packages/utils/"]
+exclude = ["contracts/cw20-ics20"]
 
 [profile.release.package.cw1-subkeys]
 codegen-units = 1

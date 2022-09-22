@@ -9,9 +9,8 @@ repository = "https://github.com/CosmWasm/cw-plus"
 homepage = "https://cosmwasm.com"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-cosmwasm-std = { version = "1.0.0" }
+cosmwasm-std = { git = "https://github.com/scrtlabs/cosmwasm", branch = "secret" }
 cw-utils = { path = "../utils", version = "0.14.0" }
 cw-storage-plus = { path = "../storage-plus", version = "0.14.0" }
 schemars = "0.8.1"
