@@ -159,7 +159,7 @@ export async function loopRelayer(link: Link) {
     try {
       nextRelay = await link.checkAndRelayPacketsAndAcks(nextRelay, 2, 6);
       console.group("Next Relay:");
-      console.log(nextRelay);
+      console.log(JSON.stringify(nextRelay));
       console.groupEnd();
 
       await link.updateClientIfStale("A", options.maxAgeDest);
