@@ -1,6 +1,8 @@
 import { IbcClient, Link } from "@confio/relayer";
+import { ChannelPair } from "@confio/relayer/build/lib/link";
 import { GasPrice } from "@cosmjs/stargate";
 import { sha256 } from "@noble/hashes/sha256";
+import { channel } from "diagnostics_channel";
 import { SecretNetworkClient, toHex, toUtf8, Wallet } from "secretjs";
 import { Order, State as ChannelState } from "secretjs/dist/protobuf_stuff/ibc/core/channel/v1/channel";
 import { State as ConnectionState } from "secretjs/dist/protobuf_stuff/ibc/core/connection/v1/connection";
@@ -95,7 +97,7 @@ export async function waitForIBCChannel(chainId: string, grpcWebUrl: string, cha
   }
 }
 
-export async function startRelayer(contractPort: string): Promise<Link> {
+export async function createIbcConnection(): Promise<Link> {
   // Create signers as LocalSecret account d
   // (Both localsecret so same account can be used on both sides)
   const signerA = new Wallet(
@@ -110,8 +112,8 @@ export async function startRelayer(contractPort: string): Promise<Link> {
     estimatedBlockTime: 5750,
     estimatedIndexerTime: 1000,
   });
-  console.group("IBC Client for chain A");
-  console.log(clientA);
+  console.group("IBC client for chain A");
+  console.log(JSON.stringify(clientA));
   console.groupEnd();
 
   // Create IBC Client for chain A
@@ -119,27 +121,35 @@ export async function startRelayer(contractPort: string): Promise<Link> {
     prefix: "secret",
     gasPrice: GasPrice.fromString("0.25uscrt"),
     estimatedBlockTime: 5750,
-    estimatedIndexerTime: 1000,
+    estimatedIndexerTime: 500,
   });
-  console.group("IBC Client for chain A");
-  console.log(clientA);
+  console.group("IBC client for chain B");
+  console.log(JSON.stringify(clientB));
   console.groupEnd();
 
   // Create new connectiosn for the 2 clients
   const link = await Link.createWithNewConnections(clientA, clientB);
 
-  console.group("IBC Link Details");
-  console.log(link);
-  console.groupEnd();
-
-  // Create a channel for the connections
-  const channels = await link.createChannel("A", contractPort, "transfer", Order.ORDER_ORDERED, "ics20-1");
-
-  console.group("IBC Channel Details");
-  console.log(channels);
+  console.group("IBC link details");
+  console.log(JSON.stringify(link));
   console.groupEnd();
 
   return link;
+}
+export async function createIbcChannel(link: Link, contractPort: string): Promise<ChannelPair> {
+  const options = { poll: 5000, maxAgeDest: 86400, maxAgeSrc: 86400 };
+
+  await link.updateClientIfStale("A", options.maxAgeDest);
+  await link.updateClientIfStale("B", options.maxAgeSrc);
+
+  // Create a channel for the connections
+  const channels = await link.createChannel("A", contractPort, "transfer", Order.ORDER_UNORDERED, "ics20-1");
+
+  console.group("IBC channel details");
+  console.log(JSON.stringify(channels));
+  console.groupEnd();
+
+  return channels;
 }
 
 export async function loopRelayer(link: Link) {

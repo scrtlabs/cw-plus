@@ -7,7 +7,7 @@ clippy:
 	cargo clippy
 
 .PHONY: build
-build: contract.wasm src/* Cargo.toml Cargo.lock
+build: contract.wasm src Cargo.toml Cargo.lock
 	RUSTFLAGS='-C link-arg=-s' cargo build --release --target wasm32-unknown-unknown --locked
 	@# The following line is not necessary, may work only on linux (extra size optimization)
 	wasm-opt -Oz ./target/wasm32-unknown-unknown/release/cw20_ics20.wasm -o ./contract.wasm

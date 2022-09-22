@@ -9,8 +9,6 @@ use crate::ContractError;
 
 pub const ADMIN: Admin = Admin::new("admin");
 
-pub const CONFIG: Item<Config> = Item::new("ics20_config");
-
 // Used to pass info from the ibc_packet_receive to the reply handler
 pub const REPLY_ARGS: Item<ReplyArgs> = Item::new("reply_args");
 
@@ -27,12 +25,6 @@ pub const ALLOW_LIST: Map<&Addr, AllowInfo> = Map::new("allow_list");
 pub struct ChannelState {
     pub outstanding: Uint128,
     pub total_sent: Uint128,
-}
-
-#[derive(Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema, Debug)]
-pub struct Config {
-    pub default_timeout: u64,
-    pub default_gas_limit: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

@@ -8,15 +8,10 @@ use crate::state::ChannelInfo;
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 pub struct InitMsg {
-    /// Default timeout for ics20 packets, specified in seconds
-    pub default_timeout: u64,
     /// who can allow more contracts
-    pub gov_contract: String,
+    pub admin: String,
     /// initial allowlist - all cw20 tokens we will send must be previously allowed by governance
     pub allowlist: Vec<AllowMsg>,
-    /// If set, contracts off the allowlist will run with this gas limit.
-    /// If unset, will refuse to accept any contract off the allow list.
-    pub default_gas_limit: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
@@ -47,14 +42,12 @@ pub struct TransferMsg {
     /// and cannot be validated locally
     pub remote_address: String,
     /// How long the packet lives in seconds. If not specified, use default_timeout
-    pub timeout: Option<u64>,
+    pub timeout: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    /// Show the Config. Returns ConfigResponse (currently including admin as well)
-    Config {},
     /// Return AdminResponse
     Admin {},
     /// Query if a given cw20 contract is allowed. Returns AllowedResponse
@@ -86,7 +79,7 @@ pub struct PortResponse {
 pub struct ConfigResponse {
     pub default_timeout: u64,
     pub default_gas_limit: Option<u64>,
-    pub gov_contract: String,
+    pub admin: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema, Debug)]

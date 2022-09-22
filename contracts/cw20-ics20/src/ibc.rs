@@ -503,7 +503,7 @@ mod test {
         let transfer = TransferMsg {
             channel: send_channel.to_string(),
             remote_address: "remote-rcpt".to_string(),
-            timeout: None,
+            timeout: 600,
         };
         let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
             sender: "local-sender".to_string(),

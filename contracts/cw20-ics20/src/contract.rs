@@ -11,12 +11,8 @@ use cw20::{Cw20Coin, Cw20ReceiveMsg};
 use crate::amount::Amount;
 use crate::error::ContractError;
 use crate::ibc::Ics20Packet;
-use crate::msg::{
-    AllowMsg, AllowedResponse, ConfigResponse, ExecuteMsg, InitMsg, QueryMsg, TransferMsg,
-};
-use crate::state::{
-    increase_channel_balance, AllowInfo, Config, ADMIN, ALLOW_LIST, CHANNEL_INFO, CONFIG,
-};
+use crate::msg::{AllowMsg, AllowedResponse, ExecuteMsg, InitMsg, QueryMsg, TransferMsg};
+use crate::state::{increase_channel_balance, AllowInfo, ADMIN, ALLOW_LIST, CHANNEL_INFO};
 use cw_utils::nonpayable;
 
 // version info for migration info
@@ -31,13 +27,8 @@ pub fn instantiate(
     msg: InitMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    let cfg = Config {
-        default_timeout: msg.default_timeout,
-        default_gas_limit: msg.default_gas_limit,
-    };
-    CONFIG.save(deps.storage, &cfg)?;
 
-    let admin = deps.api.addr_validate(&msg.gov_contract)?;
+    let admin = deps.api.addr_validate(&msg.admin)?;
     ADMIN.set(deps.branch(), Some(admin))?;
 
     // add all allows
@@ -100,25 +91,9 @@ pub fn execute_transfer(
     if !CHANNEL_INFO.has(deps.storage, &msg.channel) {
         return Err(ContractError::NoSuchChannel { id: msg.channel });
     }
-    let config = CONFIG.load(deps.storage)?;
 
-    // if cw20 token, validate and ensure it is whitelisted, or we set default gas limit
-    let Amount::Cw20(coin) = &amount;
-    let addr = deps.api.addr_validate(&coin.address)?;
-    // if limit is set, then we always allow cw20
-    if config.default_gas_limit.is_none() {
-        ALLOW_LIST
-            .may_load(deps.storage, &addr)?
-            .ok_or(ContractError::NotOnAllowList)?;
-    }
-
-    // delta from user is in seconds
-    let timeout_delta = match msg.timeout {
-        Some(t) => t,
-        None => config.default_timeout,
-    };
     // timeout is in nanoseconds
-    let timeout = env.block.time.plus_seconds(timeout_delta);
+    let timeout = env.block.time.plus_seconds(msg.timeout);
 
     // build ics20 packet
     let packet = Ics20Packet::new(
@@ -165,42 +140,25 @@ pub fn execute_allow(
     let contract = deps.api.addr_validate(&allow.contract)?;
     let set = AllowInfo {
         gas_limit: allow.gas_limit,
-        code_hash: allow.code_hash,
+        code_hash: allow.code_hash.clone(),
     };
 
     ALLOW_LIST.save(deps.storage, &contract, &set)?;
 
-    let gas = if let Some(gas) = allow.gas_limit {
-        gas.to_string()
-    } else {
-        "None".to_string()
-    };
-
     let res = Response::new()
         .add_attribute("action", "allow")
         .add_attribute("contract", allow.contract)
-        .add_attribute("gas_limit", gas);
+        .add_attribute("code_hash", allow.code_hash)
+        .add_attribute("gas_limit", allow.gas_limit.unwrap_or(0).to_string());
     Ok(res)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::Allowed { contract } => to_binary(&query_allowed(deps, contract)?),
         QueryMsg::Admin {} => to_binary(&ADMIN.query_admin(deps)?),
     }
-}
-
-fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
-    let cfg = CONFIG.load(deps.storage)?;
-    let admin = ADMIN.get(deps)?.unwrap_or_else(|| Addr::unchecked(""));
-    let res = ConfigResponse {
-        default_timeout: cfg.default_timeout,
-        default_gas_limit: cfg.default_gas_limit,
-        gov_contract: admin.into(),
-    };
-    Ok(res)
 }
 
 fn query_allowed(deps: Deps, contract: String) -> StdResult<AllowedResponse> {
@@ -242,7 +200,7 @@ mod test {
         let transfer = TransferMsg {
             channel: send_channel.to_string(),
             remote_address: "foreign-address".to_string(),
-            timeout: Some(7777),
+            timeout: 7777,
         };
         let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
             sender: "my-account".into(),

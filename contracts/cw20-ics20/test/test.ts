@@ -1,28 +1,19 @@
 import { sha256 } from "@noble/hashes/sha256";
-import { execSync } from "child_process";
 import * as fs from "fs";
 import {
   MsgExecuteContract,
   MsgInstantiateContract,
   MsgStoreCode,
   SecretNetworkClient,
-  Snip20Querier,
   toBase64,
   toHex,
   toUtf8,
   TxResultCode,
   Wallet,
 } from "secretjs";
+import { MsgInstantiateContractResponse } from "secretjs/dist/protobuf_stuff/secret/compute/v1beta1/msg";
 import { AminoWallet } from "secretjs/dist/wallet_amino";
-import {
-  ibcDenom,
-  loopRelayer,
-  sleep,
-  startRelayer,
-  waitForBlocks,
-  waitForIBCChannel,
-  waitForIBCConnection,
-} from "./utils";
+import { ibcDenom, loopRelayer, sleep, createIbcConnection, waitForBlocks, createIbcChannel } from "./utils";
 
 type Account = {
   address: string;
@@ -64,6 +55,8 @@ let channelId1 = "";
 let channelId2 = "";
 
 beforeAll(async () => {
+  const linkPromise = createIbcConnection();
+
   const mnemonics = [
     "grant rice replace explain federal release fix clever romance raise often wild taxi quarter soccer fiber love must tape steak together observe swap guitar",
     "jelly shadow frog dirt dragon use armed praise universe win jungle close inmate rain oil canvas beauty pioneer chef soccer icon dizzy thunder meadow",
@@ -141,55 +134,73 @@ beforeAll(async () => {
   contracts.snip20.codeId = Number(tx.arrayLog.find((x) => x.key === "code_id").value);
   contracts.ics20.codeId = Number(tx.arrayLog.reverse().find((x) => x.key === "code_id").value);
 
-  console.log("Instantiating contracts on secretdev-1...");
+  console.log("Instantiating snip20 on secretdev-1...");
 
-  tx = await accounts1[0].secretjs.tx.broadcast(
-    [
-      new MsgInstantiateContract({
-        sender: accounts1[0].address,
-        codeId: contracts.snip20.codeId,
-        codeHash: contracts.snip20.codeHash,
-        initMsg: {
-          name: "Secret SCRT",
-          admin: accounts1[0].address,
-          symbol: "SSCRT",
-          decimals: 6,
-          initial_balances: [{ address: accounts1[0].address, amount: "1000" }],
-          prng_seed: "eW8=",
-          config: {
-            public_total_supply: true,
-            enable_deposit: true,
-            enable_redeem: true,
-            enable_mint: false,
-            enable_burn: false,
-          },
-          supported_denoms: ["uscrt"],
+  tx = await accounts1[0].secretjs.tx.compute.instantiateContract(
+    {
+      sender: accounts1[0].address,
+      codeId: contracts.snip20.codeId,
+      codeHash: contracts.snip20.codeHash,
+      initMsg: {
+        name: "Secret SCRT",
+        admin: accounts1[0].address,
+        symbol: "SSCRT",
+        decimals: 6,
+        initial_balances: [{ address: accounts1[0].address, amount: "1000" }],
+        prng_seed: "eW8=",
+        config: {
+          public_total_supply: true,
+          enable_deposit: true,
+          enable_redeem: true,
+          enable_mint: false,
+          enable_burn: false,
         },
-        label: `snip20-${Date.now()}`,
-      }),
-      new MsgInstantiateContract({
-        sender: accounts1[0].address,
-        codeId: contracts.ics20.codeId,
-        codeHash: contracts.ics20.codeHash,
-        initMsg: {},
-        label: `ics20-${Date.now()}`,
-      }),
-    ],
-    { gasLimit: 5_000_000 }
+        supported_denoms: ["uscrt"],
+      },
+      label: `snip20-${Date.now()}`,
+    },
+    { gasLimit: 300_000 }
+  );
+
+  contracts.snip20.address = MsgInstantiateContractResponse.decode(tx.data[0]).address;
+  contracts.snip20.ibcPortId = "wasm." + contracts.snip20.address;
+
+  console.log("Instantiating cw20-ics20 on secretdev-1...");
+
+  tx = await accounts1[0].secretjs.tx.compute.instantiateContract(
+    {
+      sender: accounts1[0].address,
+      codeId: contracts.ics20.codeId,
+      codeHash: contracts.ics20.codeHash,
+      initMsg: {
+        admin: accounts1[0].address,
+        allowlist: [
+          {
+            contract: contracts.snip20.address,
+            code_hash: contracts.snip20.codeHash,
+          },
+        ],
+      },
+      label: `ics20-${Date.now()}`,
+    },
+    { gasLimit: 300_000 }
   );
   if (tx.code !== TxResultCode.Success) {
     console.error(tx.rawLog);
   }
   expect(tx.code).toBe(TxResultCode.Success);
 
-  contracts.snip20.address = tx.arrayLog.find((x) => x.key === "contract_address").value;
-  contracts.snip20.ibcPortId = "wasm." + contracts.snip20.address;
-
-  contracts.ics20.address = tx.arrayLog.reverse().find((x) => x.key === "contract_address").value;
+  contracts.ics20.address = MsgInstantiateContractResponse.decode(tx.data[0]).address;
   contracts.ics20.ibcPortId = "wasm." + contracts.ics20.address;
 
-  console.log("Waiting for IBC to set up...");
-  const link = await startRelayer(contracts.ics20.ibcPortId);
+  console.log("Waiting IBC connection...");
+  const link = await linkPromise;
+
+  console.log("Creating IBC channel...");
+  const channels = await createIbcChannel(link, contracts.ics20.ibcPortId);
+
+  channelId1 = channels.src.channelId;
+  channelId2 = channels.dest.channelId;
 
   console.log("Looping relayer...");
   loopRelayer(link);
@@ -205,16 +216,11 @@ test(
       [
         new MsgExecuteContract({
           sender: accounts1[0].address,
-          contractAddress: contracts.ics20.address,
-          codeHash: contracts.ics20.codeHash,
+          contractAddress: contracts.snip20.address,
+          codeHash: contracts.snip20.codeHash,
           msg: {
-            register_tokens: {
-              tokens: [
-                {
-                  address: contracts.snip20.address,
-                  code_hash: contracts.snip20.codeHash,
-                },
-              ],
+            set_viewing_key: {
+              key: "banana",
             },
           },
         }),
@@ -236,16 +242,6 @@ test(
                   })
                 )
               ),
-            },
-          },
-        }),
-        new MsgExecuteContract({
-          sender: accounts1[0].address,
-          contractAddress: contracts.snip20.address,
-          codeHash: contracts.snip20.codeHash,
-          msg: {
-            set_viewing_key: {
-              key: "banana",
             },
           },
         }),
