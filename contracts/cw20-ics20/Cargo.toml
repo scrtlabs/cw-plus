@@ -25,7 +25,7 @@ cw20 = { path = "../../packages/cw20", version = "0.14.0" }
 cosmwasm-std = { git = "https://github.com/scrtlabs/cosmwasm", branch = "secret", features = [
     "stargate",
 ] }
-cw-storage-plus = { path = "../../packages/storage-plus", version = "0.14.0" }
+cw-storage-plus = { path = "../../packages/storage-plus", default-features = false, version = "0.14.0" }
 cw-controllers = { path = "../../packages/controllers", version = "0.14.0" }
 schemars = "0.8.1"
 semver = "1"
