@@ -9,7 +9,8 @@ repository = "https://github.com/CosmWasm/cw-plus"
 homepage = "https://cosmwasm.com"
 
 [features]
-default = ["iterator"]
+# default = ["iterator"]
+default = []
 iterator = ["cosmwasm-std/iterator"]
 macro = ["cw-storage-macro"]
 

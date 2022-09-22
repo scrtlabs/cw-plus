@@ -2,7 +2,6 @@
 
 use crate::contract::instantiate;
 use crate::ibc::{ibc_channel_connect, ibc_channel_open, ICS20_ORDERING, ICS20_VERSION};
-use crate::state::ChannelInfo;
 
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
@@ -32,17 +31,6 @@ pub fn mock_channel(channel_id: &str) -> IbcChannel {
         ICS20_VERSION,
         CONNECTION_ID,
     )
-}
-
-pub fn mock_channel_info(channel_id: &str) -> ChannelInfo {
-    ChannelInfo {
-        id: channel_id.to_string(),
-        counterparty_endpoint: IbcEndpoint {
-            port_id: REMOTE_PORT.into(),
-            channel_id: format!("{}5", channel_id),
-        },
-        connection_id: CONNECTION_ID.into(),
-    }
 }
 
 // we simulate instantiate and ack here

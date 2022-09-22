@@ -53,24 +53,12 @@ pub struct TransferMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    /// Return the port ID bound by this contract. Returns PortResponse
-    Port {},
-    /// Show all channels we have connected to. Return type is ListChannelsResponse.
-    ListChannels {},
-    /// Returns the details of the name channel, error if not created.
-    /// Return type: ChannelResponse.
-    Channel { id: String },
     /// Show the Config. Returns ConfigResponse (currently including admin as well)
     Config {},
     /// Return AdminResponse
     Admin {},
     /// Query if a given cw20 contract is allowed. Returns AllowedResponse
     Allowed { contract: String },
-    /// List all allowed cw20 contracts. Returns ListAllowedResponse
-    ListAllowed {
-        start_after: Option<String>,
-        limit: Option<u32>,
-    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -105,11 +93,6 @@ pub struct ConfigResponse {
 pub struct AllowedResponse {
     pub is_allowed: bool,
     pub gas_limit: Option<u64>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema, Debug)]
-pub struct ListAllowedResponse {
-    pub allow: Vec<AllowedInfo>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema, Debug)]

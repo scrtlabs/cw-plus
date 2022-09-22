@@ -1,26 +1,23 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, IbcMsg, IbcQuery, MessageInfo, Order,
-    PortIdResponse, Response, StdResult,
+    from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, IbcMsg, MessageInfo, Response,
+    StdResult,
 };
 
 use cw2::set_contract_version;
 use cw20::{Cw20Coin, Cw20ReceiveMsg};
-use cw_storage_plus::Bound;
 
 use crate::amount::Amount;
 use crate::error::ContractError;
 use crate::ibc::Ics20Packet;
 use crate::msg::{
-    AllowMsg, AllowedInfo, AllowedResponse, ChannelResponse, ConfigResponse, ExecuteMsg, InitMsg,
-    ListAllowedResponse, ListChannelsResponse, PortResponse, QueryMsg, TransferMsg,
+    AllowMsg, AllowedResponse, ConfigResponse, ExecuteMsg, InitMsg, QueryMsg, TransferMsg,
 };
 use crate::state::{
-    increase_channel_balance, AllowInfo, Config, ADMIN, ALLOW_LIST, CHANNEL_INFO, CHANNEL_STATE,
-    CONFIG,
+    increase_channel_balance, AllowInfo, Config, ADMIN, ALLOW_LIST, CHANNEL_INFO, CONFIG,
 };
-use cw_utils::{maybe_addr, nonpayable};
+use cw_utils::nonpayable;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:cw20-ics20";
@@ -189,55 +186,10 @@ pub fn execute_allow(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Port {} => to_binary(&query_port(deps)?),
-        QueryMsg::ListChannels {} => to_binary(&query_list(deps)?),
-        QueryMsg::Channel { id } => to_binary(&query_channel(deps, id)?),
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::Allowed { contract } => to_binary(&query_allowed(deps, contract)?),
-        QueryMsg::ListAllowed { start_after, limit } => {
-            to_binary(&list_allowed(deps, start_after, limit)?)
-        }
         QueryMsg::Admin {} => to_binary(&ADMIN.query_admin(deps)?),
     }
-}
-
-fn query_port(deps: Deps) -> StdResult<PortResponse> {
-    let query = IbcQuery::PortId {}.into();
-    let PortIdResponse { port_id } = deps.querier.query(&query)?;
-    Ok(PortResponse { port_id })
-}
-
-fn query_list(deps: Deps) -> StdResult<ListChannelsResponse> {
-    let channels = CHANNEL_INFO
-        .range_raw(deps.storage, None, None, Order::Ascending)
-        .map(|r| r.map(|(_, v)| v))
-        .collect::<StdResult<_>>()?;
-    Ok(ListChannelsResponse { channels })
-}
-
-// make public for ibc tests
-pub fn query_channel(deps: Deps, id: String) -> StdResult<ChannelResponse> {
-    let info = CHANNEL_INFO.load(deps.storage, &id)?;
-    // this returns Vec<(outstanding, total)>
-    let state = CHANNEL_STATE
-        .prefix(&id)
-        .range(deps.storage, None, None, Order::Ascending)
-        .map(|r| {
-            r.map(|(denom, v)| {
-                let outstanding = Amount::from_parts(denom.clone(), v.outstanding);
-                let total = Amount::from_parts(denom, v.total_sent);
-                (outstanding, total)
-            })
-        })
-        .collect::<StdResult<Vec<_>>>()?;
-    // we want (Vec<outstanding>, Vec<total>)
-    let (balances, total_sent) = state.into_iter().unzip();
-
-    Ok(ChannelResponse {
-        info,
-        balances,
-        total_sent,
-    })
 }
 
 fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
@@ -267,75 +219,15 @@ fn query_allowed(deps: Deps, contract: String) -> StdResult<AllowedResponse> {
     Ok(res)
 }
 
-// settings for pagination
-const MAX_LIMIT: u32 = 30;
-const DEFAULT_LIMIT: u32 = 10;
-
-fn list_allowed(
-    deps: Deps,
-    start_after: Option<String>,
-    limit: Option<u32>,
-) -> StdResult<ListAllowedResponse> {
-    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let addr = maybe_addr(deps.api, start_after)?;
-    let start = addr.as_ref().map(Bound::exclusive);
-
-    let allow = ALLOW_LIST
-        .range(deps.storage, start, None, Order::Ascending)
-        .take(limit)
-        .map(|item| {
-            item.map(|(addr, allow)| AllowedInfo {
-                contract: addr.into(),
-                gas_limit: allow.gas_limit,
-            })
-        })
-        .collect::<StdResult<_>>()?;
-    Ok(ListAllowedResponse { allow })
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
     use crate::test_helpers::*;
 
     use cosmwasm_std::testing::{mock_env, mock_info};
-    use cosmwasm_std::{coins, CosmosMsg, IbcMsg, StdError, Uint128};
+    use cosmwasm_std::{coins, CosmosMsg, IbcMsg, Uint128};
 
     use cw_utils::PaymentError;
-
-    #[test]
-    fn setup_and_query() {
-        let deps = setup(&["channel-3", "channel-7"], &[]);
-
-        let raw_list = query(deps.as_ref(), mock_env(), QueryMsg::ListChannels {}).unwrap();
-        let list_res: ListChannelsResponse = from_binary(&raw_list).unwrap();
-        assert_eq!(2, list_res.channels.len());
-        assert_eq!(mock_channel_info("channel-3"), list_res.channels[0]);
-        assert_eq!(mock_channel_info("channel-7"), list_res.channels[1]);
-
-        let raw_channel = query(
-            deps.as_ref(),
-            mock_env(),
-            QueryMsg::Channel {
-                id: "channel-3".to_string(),
-            },
-        )
-        .unwrap();
-        let chan_res: ChannelResponse = from_binary(&raw_channel).unwrap();
-        assert_eq!(chan_res.info, mock_channel_info("channel-3"));
-        assert_eq!(0, chan_res.total_sent.len());
-        assert_eq!(0, chan_res.balances.len());
-
-        let err = query(
-            deps.as_ref(),
-            mock_env(),
-            QueryMsg::Channel {
-                id: "channel-10".to_string(),
-            },
-        )
-        .unwrap_err();
-        assert_eq!(err, StdError::not_found("cw20_ics20::state::ChannelInfo"));
-    }
 
     #[test]
     fn proper_checks_on_execute_cw20() {
