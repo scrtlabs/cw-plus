@@ -25,6 +25,7 @@ impl fmt::Display for Cw20Coin {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Cw20CoinVerified {
     pub address: Addr,
+    pub code_hash: String,
     pub amount: Uint128,
 }
 
