@@ -299,7 +299,7 @@ test(
         denom: expectedIbcDenom,
         amount: "1",
       },
-      receiver: accounts2[1].address,
+      receiver: accounts1[0].address,
       timeoutTimestampSec: String(Math.floor(Date.now() / 1000) + 10 * 60) /* 10 minutes */,
     });
 

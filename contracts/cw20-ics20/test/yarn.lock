@@ -2872,10 +2872,10 @@ safe-stable-stringify@^2.3.1:
   resolved "https://registry.yarnpkg.com/safe-stable-stringify/-/safe-stable-stringify-2.4.0.tgz#95fadb1bcf8057a1363e11052122f5da36a69215"
   integrity sha512-eehKHKpab6E741ud7ZIMcXhKcP6TSIezPkNZhy5U8xC6+VvrRdUA2tMgxGxaGl4cz7c2Ew5+mg5+wNB16KQqrA==
 
-secretjs@1.4.0-alpha.10:
-  version "1.4.0-alpha.10"
-  resolved "https://registry.yarnpkg.com/secretjs/-/secretjs-1.4.0-alpha.10.tgz#abf890db82aff3780ed1c9d8cf2eb60cfa17b458"
-  integrity sha512-0C50gGM04NxDLJpXVtj5532fpheocQtSP7fGA74WPzGgD3Qx3v3/zo8BPBraZtCy3JdPHh+tAt9LkLtLJcU0aw==
+secretjs@1.4.3:
+  version "1.4.3"
+  resolved "https://registry.yarnpkg.com/secretjs/-/secretjs-1.4.3.tgz#393fc381fa2924e9b339e52d1ba5ce9b3bc68241"
+  integrity sha512-IDhoPWg1Nra7ji3FU07ZHbxkp1S5uQnbLsDNj/t6Q9M9wysxv/BZafHnoEkAcB7FYYwOkxs5RxnSAZ2oiJORPw==
   dependencies:
     "@cosmjs/encoding" "0.27.1"
     "@cosmjs/math" "0.27.1"

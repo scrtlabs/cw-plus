@@ -251,11 +251,7 @@ fn do_ibc_packet_receive(
 
     let to_send = Amount::from_parts(denom.to_string(), msg.amount);
     let allow_info = check_allow_list(deps.as_ref(), &to_send)?;
-    let send = send_amount(
-        to_send,
-        allow_info.code_hash.to_string(),
-        msg.receiver.clone(),
-    );
+    let send = send_amount(to_send, allow_info.code_hash, msg.receiver.clone());
     let mut submsg = SubMsg::reply_on_error(send, RECEIVE_ID);
     submsg.gas_limit = allow_info.gas_limit;
 

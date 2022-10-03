@@ -99,7 +99,7 @@ export async function waitForIBCChannel(chainId: string, grpcWebUrl: string, cha
 
 export async function createIbcConnection(): Promise<Link> {
   // Create signers as LocalSecret account d
-  // (Both localsecret so same account can be used on both sides)
+  // (Both sides are localsecret so same account can be used on both sides)
   const signerA = new Wallet(
     "word twist toast cloth movie predict advance crumble escape whale sail such angry muffin balcony keen move employ cook valve hurt glimpse breeze brick"
   );
@@ -154,9 +154,9 @@ export async function loopRelayer(link: Link) {
   while (true) {
     try {
       nextRelay = await link.relayAll();
-      console.group("Next relay:");
-      console.log(nextRelay);
-      console.groupEnd();
+      // console.group("Next relay:");
+      // console.log(nextRelay);
+      // console.groupEnd();
 
       await Promise.all([link.updateClient("A"), link.updateClient("B")]);
     } catch (e) {
