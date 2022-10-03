@@ -341,11 +341,7 @@ fn on_packet_failure(
 
     let to_send = Amount::from_parts(msg.denom.clone(), msg.amount);
     let allow_info = check_allow_list(deps.as_ref(), &to_send)?;
-    let send = send_amount(
-        to_send,
-        allow_info.code_hash.to_string(),
-        msg.sender.clone(),
-    );
+    let send = send_amount(to_send, allow_info.code_hash, msg.sender.clone());
     let mut submsg = SubMsg::reply_on_error(send, ACK_FAILURE_ID);
     submsg.gas_limit = allow_info.gas_limit;
 

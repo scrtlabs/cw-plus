@@ -255,7 +255,7 @@ test(
     }
     expect(tx.code).toBe(TxResultCode.Success);
 
-    const snip20Balance: any = await accounts1[0].secretjs.query.compute.queryContract({
+    let snip20Balance: any = await accounts1[0].secretjs.query.compute.queryContract({
       contractAddress: contracts.snip20.address,
       codeHash: contracts.snip20.codeHash,
       query: {
@@ -311,7 +311,73 @@ test(
     console.log("Waiting for tokens to arrive back to secretdev-1...");
 
     while (true) {
-      const snip20Balance: any = await accounts1[0].secretjs.query.compute.queryContract({
+      snip20Balance = await accounts1[0].secretjs.query.compute.queryContract({
+        contractAddress: contracts.snip20.address,
+        codeHash: contracts.snip20.codeHash,
+        query: {
+          balance: { key: "banana", address: accounts1[0].address },
+        },
+      });
+
+      if (snip20Balance.balance.amount === "1000") {
+        break;
+      }
+
+      await sleep(500);
+    }
+
+    console.log("Sending tokens from secretdev-1 with a short timeout...");
+
+    tx = await accounts1[0].secretjs.tx.broadcast(
+      [
+        new MsgExecuteContract({
+          sender: accounts1[0].address,
+          contractAddress: contracts.snip20.address,
+          codeHash: contracts.snip20.codeHash,
+          msg: {
+            send: {
+              recipient: contracts.ics20.address,
+              recipient_code_hash: contracts.ics20.codeHash,
+              amount: "1",
+              msg: toBase64(
+                toUtf8(
+                  JSON.stringify({
+                    channel: channelId1,
+                    remote_address: accounts2[1].address,
+                    timeout: 3, // 3 seconds
+                  })
+                )
+              ),
+            },
+          },
+        }),
+      ],
+      {
+        gasLimit: 5_000_000,
+      }
+    );
+    if (tx.code !== TxResultCode.Success) {
+      console.error(tx.rawLog);
+    }
+    expect(tx.code).toBe(TxResultCode.Success);
+
+    // Balance is deducted optimistically so we should see 999 right away
+    snip20Balance = await accounts1[0].secretjs.query.compute.queryContract({
+      contractAddress: contracts.snip20.address,
+      codeHash: contracts.snip20.codeHash,
+      query: {
+        balance: {
+          key: "banana",
+          address: accounts1[0].address,
+        },
+      },
+    });
+    expect(snip20Balance.balance.amount).toBe("999");
+
+    console.log("Waiting for tokens refund to secretdev-1 after the timeout...");
+
+    while (true) {
+      snip20Balance = await accounts1[0].secretjs.query.compute.queryContract({
         contractAddress: contracts.snip20.address,
         codeHash: contracts.snip20.codeHash,
         query: {
