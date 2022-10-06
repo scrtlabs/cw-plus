@@ -2,7 +2,6 @@ import { IbcClient, Link } from "@confio/relayer";
 import { ChannelPair } from "@confio/relayer/build/lib/link";
 import { GasPrice } from "@cosmjs/stargate";
 import { sha256 } from "@noble/hashes/sha256";
-import { channel } from "diagnostics_channel";
 import { SecretNetworkClient, toHex, toUtf8, Wallet } from "secretjs";
 import { Order, State as ChannelState } from "secretjs/dist/protobuf_stuff/ibc/core/channel/v1/channel";
 import { State as ConnectionState } from "secretjs/dist/protobuf_stuff/ibc/core/connection/v1/connection";
