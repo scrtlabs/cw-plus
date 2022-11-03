@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, IbcMsg, MessageInfo, Response,
-    StdResult,
+    StdResult, WasmMsg,
 };
 
 use cw2::set_contract_version;
@@ -22,7 +22,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     mut deps: DepsMut,
-    _env: Env,
+    env: Env,
     _info: MessageInfo,
     msg: InitMsg,
 ) -> Result<Response, ContractError> {
@@ -31,16 +31,32 @@ pub fn instantiate(
     let admin = deps.api.addr_validate(&msg.admin)?;
     ADMIN.set(deps.branch(), Some(admin))?;
 
+    let mut register_receives = vec![];
+
     // add all allows
     for allowed in msg.allowlist {
         let contract = deps.api.addr_validate(&allowed.contract)?;
         let info = AllowInfo {
-            code_hash: allowed.code_hash,
+            code_hash: allowed.code_hash.clone(),
             gas_limit: allowed.gas_limit,
         };
         ALLOW_LIST.save(deps.storage, &contract, &info)?;
+
+        register_receives.push(WasmMsg::Execute {
+            contract_addr: allowed.contract,
+            code_hash: allowed.code_hash,
+            msg: Binary::from(
+                format!(
+                    "{{\"register_receive\":{{\"code_hash\":\"{}\"}}}}",
+                    env.contract.code_hash
+                )
+                .as_bytes()
+                .to_vec(),
+            ),
+            funds: vec![],
+        });
     }
-    Ok(Response::default())
+    Ok(Response::default().add_messages(register_receives))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -131,7 +147,7 @@ pub fn execute_transfer(
 /// It cannot block or reduce the limit to avoid forcible sticking tokens in the channel.
 pub fn execute_allow(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     allow: AllowMsg,
 ) -> Result<Response, ContractError> {
@@ -147,9 +163,22 @@ pub fn execute_allow(
 
     let res = Response::new()
         .add_attribute("action", "allow")
-        .add_attribute("contract", allow.contract)
-        .add_attribute("code_hash", allow.code_hash)
-        .add_attribute("gas_limit", allow.gas_limit.unwrap_or(0).to_string());
+        .add_attribute("contract", allow.contract.clone())
+        .add_attribute("code_hash", allow.code_hash.clone())
+        .add_attribute("gas_limit", allow.gas_limit.unwrap_or(0).to_string())
+        .add_message(WasmMsg::Execute {
+            contract_addr: allow.contract,
+            code_hash: allow.code_hash,
+            msg: Binary::from(
+                format!(
+                    "{{\"register_receive\":{{\"code_hash\":\"{}\"}}}}",
+                    env.contract.code_hash
+                )
+                .as_bytes()
+                .to_vec(),
+            ),
+            funds: vec![],
+        });
     Ok(res)
 }
 
