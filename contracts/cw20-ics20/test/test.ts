@@ -11,7 +11,7 @@ import {
   TxResultCode,
   Wallet,
 } from "secretjs";
-import { MsgInstantiateContractResponse } from "secretjs/dist/protobuf_stuff/secret/compute/v1beta1/msg";
+import { MsgInstantiateContractResponse } from "secretjs/dist/protobuf/secret/compute/v1beta1/msg";
 import { AminoWallet } from "secretjs/dist/wallet_amino";
 import { ibcDenom, loopRelayer, sleep, createIbcConnection, waitForBlocks, createIbcChannel } from "./utils";
 
@@ -54,8 +54,12 @@ const contracts: { snip20: Contract; ics20: Contract } = {
 let channelId1 = "";
 let channelId2 = "";
 
+let networksAddress = "localhost" ; // "10.0.0.116";
+
 beforeAll(async () => {
-  const linkPromise = createIbcConnection();
+  console.log("!!!!!")
+  const linkPromise = await createIbcConnection();
+  console.log("!!!!!")
 
   const mnemonics = [
     "grant rice replace explain federal release fix clever romance raise often wild taxi quarter soccer fiber love must tape steak together observe swap guitar",
@@ -71,8 +75,8 @@ beforeAll(async () => {
       mnemonic: mnemonic,
       walletAmino,
       walletProto: new Wallet(mnemonic),
-      secretjs: await SecretNetworkClient.create({
-        grpcWebUrl: "http://localhost:9091",
+      secretjs: new SecretNetworkClient({
+        url: `http://${networksAddress}:1317`,
         wallet: walletAmino,
         walletAddress: walletAmino.address,
         chainId: "secretdev-1",
@@ -89,8 +93,8 @@ beforeAll(async () => {
       mnemonic: mnemonic,
       walletAmino,
       walletProto: new Wallet(mnemonic),
-      secretjs: await SecretNetworkClient.create({
-        grpcWebUrl: "http://localhost:9391",
+      secretjs: new SecretNetworkClient({
+        url: `http://${networksAddress}:3317`,
         wallet: walletAmino,
         walletAddress: walletAmino.address,
         chainId: "secretdev-2",
@@ -98,8 +102,8 @@ beforeAll(async () => {
     };
   }
 
-  await waitForBlocks("secretdev-1", "http://localhost:9091");
-  await waitForBlocks("secretdev-2", "http://localhost:9391");
+  await waitForBlocks("secretdev-1", `http://${networksAddress}:1317`);
+  await waitForBlocks("secretdev-2", `http://${networksAddress}:3317`);
 
   contracts.snip20.wasm = fs.readFileSync(`${__dirname}/snip20.wasm`) as Uint8Array;
   contracts.ics20.wasm = fs.readFileSync(`${__dirname}/../contract.wasm`) as Uint8Array;
@@ -113,13 +117,13 @@ beforeAll(async () => {
     [
       new MsgStoreCode({
         sender: accounts1[0].address,
-        wasmByteCode: contracts.snip20.wasm,
+        wasm_byte_code: contracts.snip20.wasm,
         source: "",
         builder: "",
       }),
       new MsgStoreCode({
         sender: accounts1[0].address,
-        wasmByteCode: contracts.ics20.wasm,
+        wasm_byte_code: contracts.ics20.wasm,
         source: "",
         builder: "",
       }),
@@ -139,9 +143,9 @@ beforeAll(async () => {
   tx = await accounts1[0].secretjs.tx.compute.instantiateContract(
     {
       sender: accounts1[0].address,
-      codeId: contracts.snip20.codeId,
-      codeHash: contracts.snip20.codeHash,
-      initMsg: {
+      code_id: contracts.snip20.codeId,
+      code_hash: contracts.snip20.codeHash,
+      init_msg: {
         name: "Secret SCRT",
         admin: accounts1[0].address,
         symbol: "SSCRT",
@@ -170,9 +174,9 @@ beforeAll(async () => {
   tx = await accounts1[0].secretjs.tx.compute.instantiateContract(
     {
       sender: accounts1[0].address,
-      codeId: contracts.ics20.codeId,
-      codeHash: contracts.ics20.codeHash,
-      initMsg: {
+      code_id: contracts.ics20.codeId,
+      code_hash: contracts.ics20.codeHash,
+      init_msg: {
         admin: accounts1[0].address,
         allowlist: [
           {
@@ -216,8 +220,8 @@ test(
       [
         new MsgExecuteContract({
           sender: accounts1[0].address,
-          contractAddress: contracts.snip20.address,
-          codeHash: contracts.snip20.codeHash,
+          contract_address: contracts.snip20.address,
+          code_hash: contracts.snip20.codeHash,
           msg: {
             set_viewing_key: {
               key: "banana",
@@ -226,8 +230,8 @@ test(
         }),
         new MsgExecuteContract({
           sender: accounts1[0].address,
-          contractAddress: contracts.snip20.address,
-          codeHash: contracts.snip20.codeHash,
+          contract_address: contracts.snip20.address,
+          code_hash: contracts.snip20.codeHash,
           msg: {
             send: {
               recipient: contracts.ics20.address,
@@ -256,8 +260,8 @@ test(
     expect(tx.code).toBe(TxResultCode.Success);
 
     let snip20Balance: any = await accounts1[0].secretjs.query.compute.queryContract({
-      contractAddress: contracts.snip20.address,
-      codeHash: contracts.snip20.codeHash,
+      contract_address: contracts.snip20.address,
+      code_hash: contracts.snip20.codeHash,
       query: {
         balance: {
           key: "banana",
@@ -293,14 +297,15 @@ test(
     // send tokens back from secretdev-2
     tx = await accounts2[1].secretjs.tx.ibc.transfer({
       sender: accounts2[1].address,
-      sourcePort: "transfer",
-      sourceChannel: channelId2,
+      source_port: "transfer",
+      source_channel: channelId2,
       token: {
         denom: expectedIbcDenom,
         amount: "1",
       },
       receiver: accounts1[0].address,
-      timeoutTimestampSec: String(Math.floor(Date.now() / 1000) + 10 * 60) /* 10 minutes */,
+      timeout_timestamp: "6000000000"
+      //timeoutTimestampSec: String(Math.floor(Date.now() / 1000) + 10 * 60) /* 10 minutes */,
     });
 
     if (tx.code !== TxResultCode.Success) {
@@ -312,8 +317,8 @@ test(
 
     while (true) {
       snip20Balance = await accounts1[0].secretjs.query.compute.queryContract({
-        contractAddress: contracts.snip20.address,
-        codeHash: contracts.snip20.codeHash,
+        contract_address: contracts.snip20.address,
+        code_hash: contracts.snip20.codeHash,
         query: {
           balance: { key: "banana", address: accounts1[0].address },
         },
@@ -332,8 +337,8 @@ test(
       [
         new MsgExecuteContract({
           sender: accounts1[0].address,
-          contractAddress: contracts.snip20.address,
-          codeHash: contracts.snip20.codeHash,
+          contract_address: contracts.snip20.address,
+          code_hash: contracts.snip20.codeHash,
           msg: {
             send: {
               recipient: contracts.ics20.address,
@@ -363,8 +368,8 @@ test(
 
     // Balance is deducted optimistically so we should see 999 right away
     snip20Balance = await accounts1[0].secretjs.query.compute.queryContract({
-      contractAddress: contracts.snip20.address,
-      codeHash: contracts.snip20.codeHash,
+      contract_address: contracts.snip20.address,
+      code_hash: contracts.snip20.codeHash,
       query: {
         balance: {
           key: "banana",
@@ -378,8 +383,8 @@ test(
 
     while (true) {
       snip20Balance = await accounts1[0].secretjs.query.compute.queryContract({
-        contractAddress: contracts.snip20.address,
-        codeHash: contracts.snip20.codeHash,
+        contract_address: contracts.snip20.address,
+        code_hash: contracts.snip20.codeHash,
         query: {
           balance: { key: "banana", address: accounts1[0].address },
         },

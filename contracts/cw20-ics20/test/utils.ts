@@ -3,8 +3,11 @@ import { ChannelPair } from "@confio/relayer/build/lib/link";
 import { GasPrice } from "@cosmjs/stargate";
 import { sha256 } from "@noble/hashes/sha256";
 import { SecretNetworkClient, toHex, toUtf8, Wallet } from "secretjs";
-import { Order, State as ChannelState } from "secretjs/dist/protobuf_stuff/ibc/core/channel/v1/channel";
-import { State as ConnectionState } from "secretjs/dist/protobuf_stuff/ibc/core/connection/v1/connection";
+import { Order, State as ChannelState } from "secretjs/dist/protobuf/ibc/core/channel/v1/channel";
+import { State as ConnectionState } from "secretjs/dist/protobuf/ibc/core/connection/v1/connection";
+
+let networksAddress = "10.0.0.116"; // localhost
+
 
 export const ibcDenom = (
   paths: {
@@ -28,9 +31,9 @@ export async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function waitForBlocks(chainId: string, grpcWebUrl: string) {
-  const secretjs = await SecretNetworkClient.create({
-    grpcWebUrl,
+export async function waitForBlocks(chainId: string, url: string) {
+  const secretjs = new SecretNetworkClient({
+    url,
     chainId,
   });
 
@@ -50,9 +53,9 @@ export async function waitForBlocks(chainId: string, grpcWebUrl: string) {
   }
 }
 
-export async function waitForIBCConnection(chainId: string, grpcWebUrl: string) {
-  const secretjs = await SecretNetworkClient.create({
-    grpcWebUrl,
+export async function waitForIBCConnection(chainId: string, url: string) {
+  const secretjs = new SecretNetworkClient({
+    url,
     chainId,
   });
 
@@ -61,7 +64,7 @@ export async function waitForIBCConnection(chainId: string, grpcWebUrl: string) 
     try {
       const { connections } = await secretjs.query.ibc_connection.connections({});
 
-      if (connections.length >= 1 && connections[0].state === ConnectionState.STATE_OPEN) {
+      if (connections.length >= 1 && connections[0].state === "STATE_OPEN") {
         console.log("Found an open connection on", chainId);
         break;
       }
@@ -72,9 +75,9 @@ export async function waitForIBCConnection(chainId: string, grpcWebUrl: string) 
   }
 }
 
-export async function waitForIBCChannel(chainId: string, grpcWebUrl: string, channelId: string) {
-  const secretjs = await SecretNetworkClient.create({
-    grpcWebUrl,
+export async function waitForIBCChannel(chainId: string, url: string, channelId: string) {
+  const secretjs = new SecretNetworkClient({
+    url,
     chainId,
   });
 
@@ -84,7 +87,7 @@ export async function waitForIBCChannel(chainId: string, grpcWebUrl: string, cha
       const { channels } = await secretjs.query.ibc_channel.channels({});
 
       for (const c of channels) {
-        if (c.channelId === channelId && c.state == ChannelState.STATE_OPEN) {
+        if (c.channel_id === channelId && c.state == "STATE_OPEN") {
           console.log(`${channelId} is open on ${chainId}`);
           break outter;
         }
@@ -105,7 +108,7 @@ export async function createIbcConnection(): Promise<Link> {
   const signerB = signerA;
 
   // Create IBC Client for chain A
-  const clientA = await IbcClient.connectWithSigner("http://localhost:26657", signerA, signerA.address, {
+  const clientA = await IbcClient.connectWithSigner(`http://${networksAddress}:26657`, signerB, signerB.address, {
     prefix: "secret",
     gasPrice: GasPrice.fromString("0.25uscrt"),
     estimatedBlockTime: 5750,
@@ -116,7 +119,7 @@ export async function createIbcConnection(): Promise<Link> {
   // console.groupEnd();
 
   // Create IBC Client for chain A
-  const clientB = await IbcClient.connectWithSigner("http://localhost:36657", signerB, signerB.address, {
+  const clientB = await IbcClient.connectWithSigner(`http://${networksAddress}:36657`, signerA, signerA.address, {
     prefix: "secret",
     gasPrice: GasPrice.fromString("0.25uscrt"),
     estimatedBlockTime: 5750,
@@ -127,8 +130,9 @@ export async function createIbcConnection(): Promise<Link> {
   // console.groupEnd();
 
   // Create new connectiosn for the 2 clients
+  console.log("===== 1 ")
   const link = await Link.createWithNewConnections(clientA, clientB);
-
+  console.log("===== 2 ")
   // console.group("IBC link details");
   // console.log(JSON.stringify(link));
   // console.groupEnd();
