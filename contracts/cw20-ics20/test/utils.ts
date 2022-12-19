@@ -6,7 +6,7 @@ import { SecretNetworkClient, toHex, toUtf8, Wallet } from "secretjs";
 import { Order, State as ChannelState } from "secretjs/dist/protobuf/ibc/core/channel/v1/channel";
 import { State as ConnectionState } from "secretjs/dist/protobuf/ibc/core/connection/v1/connection";
 
-let networksAddress = "10.0.0.116"; // localhost
+let networksAddress = "localhost"; 
 
 
 export const ibcDenom = (
