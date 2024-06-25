@@ -90,7 +90,7 @@ pub fn execute_receive(
         amount: wrapper.amount,
     });
     let api = deps.api;
-    execute_transfer(deps, env, msg, amount, api.addr_validate(&wrapper.sender)?)
+    execute_transfer(deps, env, msg, amount, wrapper.memo, api.addr_validate(&wrapper.sender)?)
 }
 
 pub fn execute_transfer(
@@ -98,6 +98,7 @@ pub fn execute_transfer(
     env: Env,
     msg: TransferMsg,
     amount: Amount,
+    memo: Option<String>,
     sender: Addr,
 ) -> Result<Response, ContractError> {
     if amount.is_empty() {
@@ -112,12 +113,15 @@ pub fn execute_transfer(
     let timeout = env.block.time.plus_seconds(msg.timeout);
 
     // build ics20 packet
-    let packet = Ics20Packet::new(
+    let mut packet = Ics20Packet::new(
         amount.amount(),
         amount.denom(),
         sender.as_ref(),
         &msg.remote_address,
     );
+    if let Some(m) = memo {
+        packet.memo = m;
+    }
     packet.validate()?;
 
     // Update the balance now (optimistically) like ibctransfer modules.
@@ -139,7 +143,8 @@ pub fn execute_transfer(
         .add_attribute("sender", &packet.sender)
         .add_attribute("receiver", &packet.receiver)
         .add_attribute("denom", &packet.denom)
-        .add_attribute("amount", &packet.amount.to_string());
+        .add_attribute("amount", &packet.amount.to_string())
+        .add_attribute("memo", &packet.memo.to_string());
     Ok(res)
 }
 

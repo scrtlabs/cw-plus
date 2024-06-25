@@ -32,6 +32,8 @@ pub struct Ics20Packet {
     pub receiver: String,
     /// the sender address
     pub sender: String,
+    /// ibc transfer memo
+    pub memo: String
 }
 
 impl Ics20Packet {
@@ -41,6 +43,7 @@ impl Ics20Packet {
             amount,
             sender: sender.to_string(),
             receiver: receiver.to_string(),
+            memo: "".to_string(),
         }
     }
 
@@ -263,7 +266,8 @@ fn do_ibc_packet_receive(
         .add_attribute("receiver", msg.receiver)
         .add_attribute("denom", denom)
         .add_attribute("amount", msg.amount)
-        .add_attribute("success", "true");
+        .add_attribute("success", "true")
+        .add_attribute("memo", msg.memo);
 
     Ok(res)
 }

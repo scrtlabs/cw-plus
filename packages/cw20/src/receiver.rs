@@ -10,12 +10,14 @@ pub struct Cw20ReceiveMsg {
     pub sender: String,
     pub amount: Uint128,
     pub msg: Binary,
+    pub memo: Option<String>,
 }
 
 impl Cw20ReceiveMsg {
     /// serializes the message
     pub fn into_binary(self) -> StdResult<Binary> {
         let msg = ReceiverExecuteMsg::Receive(self);
+        //Note: to_binary is depricated. use  to_json_binary
         to_binary(&msg)
     }
 
