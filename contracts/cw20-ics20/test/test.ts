@@ -56,7 +56,9 @@ let channelId1 = "";
 let channelId2 = "";
 
 beforeAll(async () => {
-  const linkPromise = createIbcConnection();
+  const link = await createIbcConnection();
+
+  await sleep(300)
 
   const mnemonics = [
     "grant rice replace explain federal release fix clever romance raise often wild taxi quarter soccer fiber love must tape steak together observe swap guitar",
@@ -93,7 +95,7 @@ beforeAll(async () => {
       walletAmino,
       walletProto,
       secretjs: new SecretNetworkClient({
-        url: "http://localhost:3317",
+        url: "http://localhost:2317",
         wallet: walletProto,
         walletAddress: walletProto.address,
         chainId: "secretdev-2",
@@ -102,7 +104,7 @@ beforeAll(async () => {
   }
 
   await waitForBlocks("secretdev-1", "http://localhost:1317");
-  await waitForBlocks("secretdev-2", "http://localhost:3317");
+  await waitForBlocks("secretdev-2", "http://localhost:2317");
 
   contracts.snip20.wasm = fs.readFileSync(`${__dirname}/snip20.wasm`) as Uint8Array;
   contracts.ics20.wasm = fs.readFileSync(`${__dirname}/../contract.wasm`) as Uint8Array;
@@ -129,13 +131,17 @@ beforeAll(async () => {
     ],
     { gasLimit: 5_000_000 }
   );
+  await sleep(1000);
   if (tx.code !== TxResultCode.Success) {
     console.error(tx.rawLog);
   }
   expect(tx.code).toBe(TxResultCode.Success);
 
+
   contracts.snip20.codeId = Number(tx.arrayLog.find((x) => x.key === "code_id").value);
+  await sleep(1000);
   contracts.ics20.codeId = Number(tx.arrayLog.reverse().find((x) => x.key === "code_id").value);
+  await sleep(1000);
 
   console.log("Instantiating snip20 on secretdev-1...");
 
@@ -164,6 +170,8 @@ beforeAll(async () => {
     },
     { gasLimit: 300_000 }
   );
+
+  await sleep(1000);
 
   contracts.snip20.address = MsgInstantiateContractResponse.decode(tx.data[0]).address;
   contracts.snip20.ibcPortId = "wasm." + contracts.snip20.address;
@@ -196,8 +204,12 @@ beforeAll(async () => {
   contracts.ics20.address = MsgInstantiateContractResponse.decode(tx.data[0]).address;
   contracts.ics20.ibcPortId = "wasm." + contracts.ics20.address;
 
+  await sleep(1000);
+
   console.log("Waiting for IBC connection...");
-  const link = await linkPromise;
+  // const link = await createIbcConnection();
+
+  await sleep(1000);
 
   console.log("Creating IBC channel...");
   const channels = await createIbcChannel(link, contracts.ics20.ibcPortId);
@@ -215,6 +227,7 @@ test(
     // register snip20 on ics20, then send tokens from secretdev-1
     console.log("Sending tokens from secretdev-1...");
 
+    const memo1 = "test memo from secretdev-1";
     let tx = await accounts1[0].secretjs.tx.broadcast(
       [
         new MsgExecuteContract({
@@ -245,7 +258,9 @@ test(
                   })
                 )
               ),
+              memo: memo1,                    
             },
+            // memo: "test2 memo from secretdev-1",                    
           },
         }),
       ],
@@ -257,6 +272,10 @@ test(
       console.error(tx.rawLog);
     }
     expect(tx.code).toBe(TxResultCode.Success);
+
+    let res = tx.arrayLog.find(element => element.key === 'memo');
+    let receivedMemo = res ? res.value : undefined;
+    expect(receivedMemo).toBe(memo1);
 
     let snip20Balance: any = await accounts1[0].secretjs.query.compute.queryContract({
       contract_address: contracts.snip20.address,
@@ -304,7 +323,7 @@ test(
       },
       receiver: accounts1[0].address,
       timeout_timestamp: String(Math.floor(Date.now() / 1000) + 10 * 60) /* 10 minutes */,
-      memo: "memo"
+      memo: "test memo from secretdev-2"
     });
 
     if (tx.code !== TxResultCode.Success) {

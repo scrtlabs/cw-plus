@@ -1,5 +1,7 @@
 import { IbcClient, Link } from "@confio/relayer";
 import { ChannelPair } from "@confio/relayer/build/lib/link";
+import { stringToPath } from "@cosmjs/crypto";
+import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
 import { GasPrice } from "@cosmjs/stargate";
 import { sha256 } from "@noble/hashes/sha256";
 import { SecretNetworkClient, toHex, toUtf8, Wallet } from "secretjs";
@@ -106,47 +108,53 @@ export async function waitForIBCChannel(chainId: string, url: string, channelId:
 export async function createIbcConnection(): Promise<Link> {
   // Create signers as LocalSecret account d
   // (Both sides are localsecret so same account can be used on both sides)
-  const signerA = new Wallet(
-    "word twist toast cloth movie predict advance crumble escape whale sail such angry muffin balcony keen move employ cook valve hurt glimpse breeze brick"
+  const signerA = await DirectSecp256k1HdWallet.fromMnemonic(
+    "word twist toast cloth movie predict advance crumble escape whale sail such angry muffin balcony keen move employ cook valve hurt glimpse breeze brick", // account d
+    { hdPaths: [stringToPath("m/44'/529'/0'/0/0")], prefix: "secret" },
   );
+  const [account] = await signerA.getAccounts();
   const signerB = signerA;
 
   // Create IBC Client for chain A
   const clientA = await IbcClient.connectWithSigner(
     chain1RPC,
     signerA,
-    signerA.address, 
+    account.address, 
   {
     gasPrice: GasPrice.fromString("0.25uscrt"),
     estimatedBlockTime: 750,
     estimatedIndexerTime: 500,
   });
-  // console.group("IBC client for chain A");
+  console.group("IBC client for chain A");
   // console.log(JSON.stringify(clientA));
   // console.groupEnd();
+  await sleep(2000);
 
   // Create IBC Client for chain A
   const clientB = await IbcClient.connectWithSigner(
   chain2RPC, 
   signerB,
-  signerB.address, 
+  account.address, 
   {
     gasPrice: GasPrice.fromString("0.25uscrt"),
     estimatedBlockTime: 750,
     estimatedIndexerTime: 500,
   });
   console.group("IBC client for chain B");
+  await sleep(2000);
   // console.log(JSON.stringify(clientB));
   // console.groupEnd();
 
   // Create new connectiosn for the 2 clients
-  console.log("clientA:", clientA);
-  console.log("clientB:", clientB);
+  // econsole.log("clientA:", clientA);
+  // console.log("clientB:", clientB);
   const link = await Link.createWithNewConnections(clientA, clientB);
 
-  console.group("IBC link details");
-  console.log(JSON.stringify(link));
-  console.groupEnd();
+  await sleep(1000);
+
+  // console.group("IBC link details");
+  // console.log(JSON.stringify(link));
+  // console.groupEnd();
 
   return link;
 }
