@@ -56,7 +56,8 @@ let channelId1 = "";
 let channelId2 = "";
 
 beforeAll(async () => {
-  const linkPromise = createIbcConnection();
+  console.log("Waiting for IBC connection...");
+  const link = await createIbcConnection();
 
   const mnemonics = [
     "grant rice replace explain federal release fix clever romance raise often wild taxi quarter soccer fiber love must tape steak together observe swap guitar",
@@ -134,6 +135,7 @@ beforeAll(async () => {
   }
   expect(tx.code).toBe(TxResultCode.Success);
 
+
   contracts.snip20.codeId = Number(tx.arrayLog.find((x) => x.key === "code_id").value);
   contracts.ics20.codeId = Number(tx.arrayLog.reverse().find((x) => x.key === "code_id").value);
 
@@ -196,9 +198,6 @@ beforeAll(async () => {
   contracts.ics20.address = MsgInstantiateContractResponse.decode(tx.data[0]).address;
   contracts.ics20.ibcPortId = "wasm." + contracts.ics20.address;
 
-  console.log("Waiting for IBC connection...");
-  const link = await linkPromise;
-
   console.log("Creating IBC channel...");
   const channels = await createIbcChannel(link, contracts.ics20.ibcPortId);
 
@@ -215,6 +214,7 @@ test(
     // register snip20 on ics20, then send tokens from secretdev-1
     console.log("Sending tokens from secretdev-1...");
 
+    const memo1 = "test memo from secretdev-1";
     let tx = await accounts1[0].secretjs.tx.broadcast(
       [
         new MsgExecuteContract({
@@ -245,7 +245,9 @@ test(
                   })
                 )
               ),
+              memo: memo1,                    
             },
+            // memo: "test2 memo from secretdev-1",                    
           },
         }),
       ],
@@ -257,6 +259,10 @@ test(
       console.error(tx.rawLog);
     }
     expect(tx.code).toBe(TxResultCode.Success);
+
+    let res = tx.arrayLog.find(element => element.key === 'memo');
+    let receivedMemo = res ? res.value : undefined;
+    expect(receivedMemo).toBe(memo1);
 
     let snip20Balance: any = await accounts1[0].secretjs.query.compute.queryContract({
       contract_address: contracts.snip20.address,
@@ -304,7 +310,7 @@ test(
       },
       receiver: accounts1[0].address,
       timeout_timestamp: String(Math.floor(Date.now() / 1000) + 10 * 60) /* 10 minutes */,
-      memo: "memo"
+      memo: "test memo from secretdev-2"
     });
 
     if (tx.code !== TxResultCode.Success) {

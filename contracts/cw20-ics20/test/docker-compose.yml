@@ -13,6 +13,7 @@ services:
       # faucet
       - "5000:5000"
     environment:
+      FAST_BLOCKS: "true"
       LOG_LEVEL: "TRACE"
   localsecret-2:
     image: "ghcr.io/scrtlabs/localsecret:v1.14.0"
@@ -27,5 +28,6 @@ services:
       # faucet
       - "5300:5000"
     environment:
+      FAST_BLOCKS: "true"
       CHAINID: "secretdev-2"
       LOG_LEVEL: "TRACE"

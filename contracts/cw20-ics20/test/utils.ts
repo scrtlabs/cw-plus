@@ -1,5 +1,7 @@
 import { IbcClient, Link } from "@confio/relayer";
 import { ChannelPair } from "@confio/relayer/build/lib/link";
+import { stringToPath } from "@cosmjs/crypto";
+import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
 import { GasPrice } from "@cosmjs/stargate";
 import { sha256 } from "@noble/hashes/sha256";
 import { SecretNetworkClient, toHex, toUtf8, Wallet } from "secretjs";
@@ -9,7 +11,7 @@ import { Order, State as ChannelState, stateToJSON as stateToJSONChannel } from 
 import { State as ConnectionState, stateToJSON as stateToJSONConnection } from "secretjs/dist/protobuf/ibc/core/connection/v1/connection";
 
 export const chain1LCD = "http://localhost:1317";
-export const chain2LCD = "http://localhost:2317";
+export const chain2LCD = "http://localhost:3317";
 
 export const chain1RPC = "http://localhost:26657";
 export const chain2RPC = "http://localhost:36657";
@@ -106,47 +108,51 @@ export async function waitForIBCChannel(chainId: string, url: string, channelId:
 export async function createIbcConnection(): Promise<Link> {
   // Create signers as LocalSecret account d
   // (Both sides are localsecret so same account can be used on both sides)
-  const signerA = new Wallet(
-    "word twist toast cloth movie predict advance crumble escape whale sail such angry muffin balcony keen move employ cook valve hurt glimpse breeze brick"
+  const signerA = await DirectSecp256k1HdWallet.fromMnemonic(
+    "word twist toast cloth movie predict advance crumble escape whale sail such angry muffin balcony keen move employ cook valve hurt glimpse breeze brick", // account d
+    { hdPaths: [stringToPath("m/44'/529'/0'/0/0")], prefix: "secret" },
   );
+  const [account] = await signerA.getAccounts();
   const signerB = signerA;
 
   // Create IBC Client for chain A
   const clientA = await IbcClient.connectWithSigner(
     chain1RPC,
     signerA,
-    signerA.address, 
+    account.address, 
   {
     gasPrice: GasPrice.fromString("0.25uscrt"),
     estimatedBlockTime: 750,
     estimatedIndexerTime: 500,
   });
-  // console.group("IBC client for chain A");
+  console.group("IBC client for chain A");
   // console.log(JSON.stringify(clientA));
   // console.groupEnd();
+  await sleep(500);
 
   // Create IBC Client for chain A
   const clientB = await IbcClient.connectWithSigner(
   chain2RPC, 
   signerB,
-  signerB.address, 
+  account.address, 
   {
     gasPrice: GasPrice.fromString("0.25uscrt"),
     estimatedBlockTime: 750,
     estimatedIndexerTime: 500,
   });
   console.group("IBC client for chain B");
+  await sleep(500);
   // console.log(JSON.stringify(clientB));
   // console.groupEnd();
 
   // Create new connectiosn for the 2 clients
-  console.log("clientA:", clientA);
-  console.log("clientB:", clientB);
+  // econsole.log("clientA:", clientA);
+  // console.log("clientB:", clientB);
   const link = await Link.createWithNewConnections(clientA, clientB);
 
-  console.group("IBC link details");
-  console.log(JSON.stringify(link));
-  console.groupEnd();
+  // console.group("IBC link details");
+  // console.log(JSON.stringify(link));
+  // console.groupEnd();
 
   return link;
 }
