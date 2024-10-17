@@ -1,10 +1,20 @@
 import { IbcClient, Link } from "@confio/relayer";
 import { ChannelPair } from "@confio/relayer/build/lib/link";
+import { stringToPath } from "@cosmjs/crypto";
+import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
 import { GasPrice } from "@cosmjs/stargate";
 import { sha256 } from "@noble/hashes/sha256";
 import { SecretNetworkClient, toHex, toUtf8, Wallet } from "secretjs";
-import { Order, State as ChannelState } from "secretjs/dist/protobuf_stuff/ibc/core/channel/v1/channel";
-import { State as ConnectionState } from "secretjs/dist/protobuf_stuff/ibc/core/connection/v1/connection";
+// import { Order, State as ChannelState } from "secretjs/dist/protobuf_stuff/ibc/core/channel/v1/channel";
+import { Order, State as ChannelState, stateToJSON as stateToJSONChannel } from "secretjs/dist/protobuf/ibc/core/channel/v1/channel";
+// import { State as ConnectionState } from "secretjs/dist/protobuf_stuff/ibc/core/connection/v1/connection";
+import { State as ConnectionState, stateToJSON as stateToJSONConnection } from "secretjs/dist/protobuf/ibc/core/connection/v1/connection";
+
+export const chain1LCD = "http://localhost:1317";
+export const chain2LCD = "http://localhost:2317";
+
+export const chain1RPC = "http://localhost:26657";
+export const chain2RPC = "http://localhost:36657";
 
 export const ibcDenom = (
   paths: {
@@ -28,9 +38,9 @@ export async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function waitForBlocks(chainId: string, grpcWebUrl: string) {
-  const secretjs = await SecretNetworkClient.create({
-    grpcWebUrl,
+export async function waitForBlocks(chainId: string, url: string) {
+  const secretjs = new SecretNetworkClient({
+    url,
     chainId,
   });
 
@@ -38,21 +48,20 @@ export async function waitForBlocks(chainId: string, grpcWebUrl: string) {
   while (true) {
     try {
       const { block } = await secretjs.query.tendermint.getLatestBlock({});
-
       if (Number(block?.header?.height) >= 1) {
         console.log(`Current block on ${chainId}: ${block!.header!.height}`);
         break;
       }
     } catch (e) {
-      // console.error("block error:", e);
+      console.error("block error:", e);
     }
     await sleep(100);
   }
 }
 
-export async function waitForIBCConnection(chainId: string, grpcWebUrl: string) {
-  const secretjs = await SecretNetworkClient.create({
-    grpcWebUrl,
+export async function waitForIBCConnection(chainId: string, url: string) {
+  const secretjs = new SecretNetworkClient({
+    url,
     chainId,
   });
 
@@ -61,7 +70,7 @@ export async function waitForIBCConnection(chainId: string, grpcWebUrl: string) 
     try {
       const { connections } = await secretjs.query.ibc_connection.connections({});
 
-      if (connections.length >= 1 && connections[0].state === ConnectionState.STATE_OPEN) {
+      if (connections.length >= 1 && connections[0].state === stateToJSONConnection(ConnectionState.STATE_OPEN)) {
         console.log("Found an open connection on", chainId);
         break;
       }
@@ -72,9 +81,9 @@ export async function waitForIBCConnection(chainId: string, grpcWebUrl: string) 
   }
 }
 
-export async function waitForIBCChannel(chainId: string, grpcWebUrl: string, channelId: string) {
-  const secretjs = await SecretNetworkClient.create({
-    grpcWebUrl,
+export async function waitForIBCChannel(chainId: string, url: string, channelId: string) {
+  const secretjs = new SecretNetworkClient({
+    url,
     chainId,
   });
 
@@ -84,7 +93,7 @@ export async function waitForIBCChannel(chainId: string, grpcWebUrl: string, cha
       const { channels } = await secretjs.query.ibc_channel.channels({});
 
       for (const c of channels) {
-        if (c.channelId === channelId && c.state == ChannelState.STATE_OPEN) {
+        if (c.channel_id === channelId && c.state == stateToJSONChannel(ChannelState.STATE_OPEN)) {
           console.log(`${channelId} is open on ${chainId}`);
           break outter;
         }
@@ -99,35 +108,49 @@ export async function waitForIBCChannel(chainId: string, grpcWebUrl: string, cha
 export async function createIbcConnection(): Promise<Link> {
   // Create signers as LocalSecret account d
   // (Both sides are localsecret so same account can be used on both sides)
-  const signerA = new Wallet(
-    "word twist toast cloth movie predict advance crumble escape whale sail such angry muffin balcony keen move employ cook valve hurt glimpse breeze brick"
+  const signerA = await DirectSecp256k1HdWallet.fromMnemonic(
+    "word twist toast cloth movie predict advance crumble escape whale sail such angry muffin balcony keen move employ cook valve hurt glimpse breeze brick", // account d
+    { hdPaths: [stringToPath("m/44'/529'/0'/0/0")], prefix: "secret" },
   );
+  const [account] = await signerA.getAccounts();
   const signerB = signerA;
 
   // Create IBC Client for chain A
-  const clientA = await IbcClient.connectWithSigner("http://localhost:26657", signerA, signerA.address, {
-    prefix: "secret",
+  const clientA = await IbcClient.connectWithSigner(
+    chain1RPC,
+    signerA,
+    account.address, 
+  {
     gasPrice: GasPrice.fromString("0.25uscrt"),
-    estimatedBlockTime: 5750,
+    estimatedBlockTime: 750,
     estimatedIndexerTime: 500,
   });
-  // console.group("IBC client for chain A");
+  console.group("IBC client for chain A");
   // console.log(JSON.stringify(clientA));
   // console.groupEnd();
+  await sleep(2000);
 
   // Create IBC Client for chain A
-  const clientB = await IbcClient.connectWithSigner("http://localhost:36657", signerB, signerB.address, {
-    prefix: "secret",
+  const clientB = await IbcClient.connectWithSigner(
+  chain2RPC, 
+  signerB,
+  account.address, 
+  {
     gasPrice: GasPrice.fromString("0.25uscrt"),
-    estimatedBlockTime: 5750,
+    estimatedBlockTime: 750,
     estimatedIndexerTime: 500,
   });
-  // console.group("IBC client for chain B");
+  console.group("IBC client for chain B");
+  await sleep(2000);
   // console.log(JSON.stringify(clientB));
   // console.groupEnd();
 
   // Create new connectiosn for the 2 clients
+  // econsole.log("clientA:", clientA);
+  // console.log("clientB:", clientB);
   const link = await Link.createWithNewConnections(clientA, clientB);
+
+  await sleep(1000);
 
   // console.group("IBC link details");
   // console.log(JSON.stringify(link));
